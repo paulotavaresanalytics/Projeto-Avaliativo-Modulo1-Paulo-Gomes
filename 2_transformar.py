@@ -10,7 +10,10 @@ Copia as tabelas Raw (texto) para as tabelas Silver (tipadas):
 3. Calcula valor_total e duracao_dias em silver_viagem.
 4. Respeita a integridade referencial: silver_viagem e carregada antes
    das tabelas filhas, e registros orfaos (sem viagem) sao descartados.
-5. Remove duplicidades das chaves (id_viagem e id_viagem + sequencia).
+5. Remove duplicidades: chaves repetidas (id_viagem em viagem e
+   id_viagem + sequencia em trecho) e linhas 100% identicas em
+   pagamento e passagem, que nao possuem chave no dicionario de dados.
+   Sempre fica a primeira ocorrencia.
 
 Regras de negocio definidas neste projeto:
     valor_total  = diarias + passagens + outros gastos - devolucao
@@ -22,6 +25,7 @@ Uso (na raiz do projeto, com o .venv ativo):
     python 2_transformar.py
 """
 
+import hashlib
 import logging
 import sys
 from datetime import datetime
@@ -150,6 +154,26 @@ def limpar_silver(conexao):
             executar(conexao, f"TRUNCATE TABLE {tabela}")
     finally:
         executar(conexao, "SET FOREIGN_KEY_CHECKS = 1")
+
+
+def listar_colunas(conexao, tabela):
+    """Retorna todas as colunas da tabela, na ordem em que foram criadas."""
+    cursor = conexao.cursor()
+    cursor.execute(f"SHOW COLUMNS FROM {tabela}")
+    colunas = [linha[0] for linha in cursor.fetchall()]
+    cursor.close()
+    return colunas
+
+
+def gerar_assinatura(linha_raw):
+    """
+    Resume uma linha inteira (todas as colunas, texto exato) em 16 bytes.
+    Duas linhas 100% identicas geram a mesma assinatura. Guardar a
+    assinatura, e nao a linha, mantem o uso de memoria baixo.
+    """
+    texto = "\x1f".join("" if valor is None else str(valor)
+                        for valor in linha_raw)
+    return hashlib.blake2b(texto.encode("utf-8"), digest_size=16).digest()
 
 
 def ler_blocos(conexao, tabela, colunas):
@@ -290,7 +314,8 @@ def gravar_lote(escrita, sql_insert, linhas, resumo):
 
 def copiar_para_silver(leitura, escrita, tabela_raw, colunas_raw,
                        tabela_silver, colunas_silver, montar_linha,
-                       ids_viagem=None, indices_chave=None):
+                       ids_viagem=None, indices_chave=None,
+                       linha_inteira_unica=False):
     """
     Le a tabela Raw em blocos, converte cada linha e grava na Silver.
 
@@ -298,6 +323,9 @@ def copiar_para_silver(leitura, escrita, tabela_raw, colunas_raw,
       cuja viagem nao existe (orfas) sao descartadas.
     - indices_chave: posicoes da linha que formam a chave unica; repeticoes
       dessa chave sao descartadas (duplicidades).
+    - linha_inteira_unica: para tabelas sem chave (pagamento e passagem),
+      descarta a linha que repete, em TODAS as colunas da Raw, uma linha
+      anterior. Compara o texto exato da Raw, antes de qualquer limpeza.
     Retorna um dicionario com a contagem de linhas.
     """
     marcadores = ", ".join(["%s"] * len(colunas_silver))
@@ -309,18 +337,34 @@ def copiar_para_silver(leitura, escrita, tabela_raw, colunas_raw,
               "invalidas": 0}
     vistos = set()
 
-    for bloco in ler_blocos(leitura, tabela_raw, colunas_raw):
+    # As colunas usadas na Silver vem primeiro; para detectar linhas
+    # identicas, as demais colunas da Raw vao no fim da consulta.
+    colunas_leitura = list(colunas_raw)
+    if linha_inteira_unica:
+        colunas_leitura += [
+            coluna for coluna in listar_colunas(leitura, tabela_raw)
+            if coluna not in colunas_raw
+        ]
+    total_silver = len(colunas_raw)
+
+    for bloco in ler_blocos(leitura, tabela_raw, colunas_leitura):
         linhas = []
         for linha_raw in bloco:
             resumo["lidas"] += 1
-            linha = montar_linha(linha_raw)
+            linha = montar_linha(linha_raw[:total_silver])
             if linha is None:
                 resumo["invalidas"] += 1
                 continue
             if ids_viagem is not None and linha[0] not in ids_viagem:
                 resumo["orfas"] += 1
                 continue
-            if indices_chave:
+            if linha_inteira_unica:
+                assinatura = gerar_assinatura(linha_raw)
+                if assinatura in vistos:
+                    resumo["duplicadas"] += 1
+                    continue
+                vistos.add(assinatura)
+            elif indices_chave:
                 chave = tuple(linha[i] for i in indices_chave)
                 if None not in chave:
                     if chave in vistos:
@@ -368,7 +412,7 @@ def transformar_viagem(leitura, escrita):
 
 
 def transformar_pagamento(leitura, escrita, ids_viagem):
-    """Raw -> Silver de pagamento (descarta pagamentos sem viagem)."""
+    """Raw -> Silver de pagamento (sem orfaos e sem linhas identicas)."""
     return copiar_para_silver(
         leitura, escrita,
         "raw_pagamento",
@@ -379,11 +423,12 @@ def transformar_pagamento(leitura, escrita, ids_viagem):
          "nome_ug_pagadora", "tipo_pagamento", "valor"],
         montar_linha_pagamento,
         ids_viagem=ids_viagem,
+        linha_inteira_unica=True,
     )
 
 
 def transformar_passagem(leitura, escrita, ids_viagem):
-    """Raw -> Silver de passagem (descarta passagens sem viagem)."""
+    """Raw -> Silver de passagem (sem orfaos e sem linhas identicas)."""
     colunas = ["id_viagem", "meio_transporte", "pais_origem_ida",
                "uf_origem_ida", "cidade_origem_ida", "pais_destino_ida",
                "uf_destino_ida", "cidade_destino_ida", "valor_passagem",
@@ -394,6 +439,7 @@ def transformar_passagem(leitura, escrita, ids_viagem):
         "silver_passagem", colunas,
         montar_linha_passagem,
         ids_viagem=ids_viagem,
+        linha_inteira_unica=True,
     )
 
 
