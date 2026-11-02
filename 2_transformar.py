@@ -49,3 +49,15 @@ TABELAS_SILVER = (
 )
 
 ERROS_ESPERADOS = (Error, RuntimeError, ValueError, OSError)
+
+
+def configurar_log():
+    """Cria a pasta logs/ e configura o registro de erros em arquivo."""
+    PASTA_LOGS.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        filename=ARQUIVO_LOG,
+        level=logging.ERROR,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        encoding="utf-8",
+        force=True,
+    )
