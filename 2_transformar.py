@@ -133,3 +133,20 @@ def calcular_valor_total(diarias, passagens, outros_gastos, devolucao):
         + (outros_gastos or zero)
         - (devolucao or zero)
     )
+
+
+def calcular_duracao_dias(data_inicio, data_fim):
+    """duracao_dias = data_fim - data_inicio + 1 (None se faltar data)."""
+    if data_inicio is None or data_fim is None or data_fim < data_inicio:
+        return None
+    return (data_fim - data_inicio).days + 1
+
+
+def limpar_silver(conexao):
+    """Esvazia as 4 tabelas Silver para a carga ser repetivel."""
+    executar(conexao, "SET FOREIGN_KEY_CHECKS = 0")
+    try:
+        for tabela in TABELAS_SILVER:
+            executar(conexao, f"TRUNCATE TABLE {tabela}")
+    finally:
+        executar(conexao, "SET FOREIGN_KEY_CHECKS = 1")
