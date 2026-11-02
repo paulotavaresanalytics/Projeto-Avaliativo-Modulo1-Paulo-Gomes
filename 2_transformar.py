@@ -242,3 +242,47 @@ def montar_linha_passagem(linha):
         converter_decimal(taxa),
         converter_data(emissao),
     )
+
+
+def montar_linha_trecho(linha):
+    """Converte uma linha de raw_trecho para silver_trecho."""
+    (id_viagem, sequencia, origem_data, origem_uf, origem_cidade,
+     destino_data, destino_uf, destino_cidade, meio, diarias) = linha
+
+    id_viagem = limpar_texto(id_viagem, 20)
+    if id_viagem is None:
+        return None
+    return (
+        id_viagem,
+        converter_inteiro(sequencia),
+        converter_data(origem_data),
+        limpar_texto(origem_uf, 40),
+        limpar_texto(origem_cidade, 80),
+        converter_data(destino_data),
+        limpar_texto(destino_uf, 40),
+        limpar_texto(destino_cidade, 80),
+        limpar_texto(meio, 50),
+        converter_decimal(diarias),
+    )
+
+
+def gravar_lote(escrita, sql_insert, linhas, resumo):
+    """
+    Grava um lote de linhas. Se o lote falhar, tenta linha a linha para
+    isolar (e registrar no log) apenas as linhas problematicas.
+    """
+    try:
+        inserir_em_lote(escrita, sql_insert, linhas)
+        resumo["gravadas"] += len(linhas)
+        return
+    except Error:
+        escrita.rollback()
+
+    for linha in linhas:
+        try:
+            inserir_em_lote(escrita, sql_insert, [linha])
+            resumo["gravadas"] += 1
+        except Error as erro:
+            escrita.rollback()
+            resumo["invalidas"] += 1
+            logging.error("Linha rejeitada | %s | %s", linha[:3], erro)
