@@ -47,3 +47,22 @@ ERROS_ESPERADOS = (
     OSError,
     zipfile.BadZipFile,
 )
+
+
+
+def baixar_zip():
+    """Baixa o .zip do Google Drive para a pasta data/."""
+    if "/" in DRIVE_FILE_ID:
+        raise ValueError(
+            "DRIVE_FILE_ID deve conter apenas o ID do arquivo, "
+            "e nao a URL completa."
+        )
+    PASTA_DADOS.mkdir(parents=True, exist_ok=True)
+    url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+    print(f"Baixando o .zip para {CAMINHO_ZIP} ...")
+    resultado = gdown.download(url, str(CAMINHO_ZIP), quiet=False)
+    if resultado is None:
+        raise RuntimeError(
+            "Falha no download do .zip. Verifique o DRIVE_FILE_ID e se "
+            "o arquivo esta compartilhado para quem tem o link."
+        )
