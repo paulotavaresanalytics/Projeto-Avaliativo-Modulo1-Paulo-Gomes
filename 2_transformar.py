@@ -101,3 +101,16 @@ def converter_decimal(texto, maximo=MAXIMO_DECIMAL):
     if valor < 0 or valor > maximo:
         return None
     return valor
+
+
+def converter_data(texto):
+    """Converte texto DD/MM/AAAA em date. Retorna None se for invalido."""
+    if texto is None:
+        return None
+    partes = str(texto).split()
+    if not partes:
+        return None
+    try:
+        return datetime.strptime(partes[0], FORMATO_DATA).date()
+    except ValueError:
+        return None
