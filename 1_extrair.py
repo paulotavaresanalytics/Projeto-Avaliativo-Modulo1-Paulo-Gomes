@@ -184,7 +184,8 @@ def carregar_todas_as_tabelas(conexao):
             erros.append(f"{tabela}: contagem diferente do CSV")
             logging.error(
                 "%s | contagem diferente (CSV=%s, tabela=%s)",
-                tabela, lidas, gravadas,)
+                tabela, lidas, gravadas,
+            )
     return erros
 
 
@@ -216,4 +217,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-    
+
