@@ -344,3 +344,69 @@ def carregar_ids_viagem(conexao):
     ids = {linha[0] for linha in cursor.fetchall()}
     cursor.close()
     return ids
+
+
+def transformar_viagem(leitura, escrita):
+    """Raw -> Silver de viagem (tabela pai, carregada primeiro)."""
+    return copiar_para_silver(
+        leitura, escrita,
+        "raw_viagem",
+        ["id_viagem", "num_proposta", "situacao", "viagem_urgente",
+         "cod_orgao_superior", "nome_orgao_superior", "nome_viajante",
+         "cargo", "data_inicio", "data_fim", "destinos", "motivo",
+         "valor_diarias", "valor_passagens", "valor_devolucao",
+         "valor_outros_gastos"],
+        "silver_viagem",
+        ["id_viagem", "num_proposta", "situacao", "viagem_urgente",
+         "cod_orgao_superior", "nome_orgao_superior", "nome_viajante",
+         "cargo", "data_inicio", "data_fim", "destinos", "motivo",
+         "valor_diarias", "valor_passagens", "valor_devolucao",
+         "valor_outros_gastos", "valor_total", "duracao_dias"],
+        montar_linha_viagem,
+        indices_chave=(0,),
+    )
+
+
+def transformar_pagamento(leitura, escrita, ids_viagem):
+    """Raw -> Silver de pagamento (descarta pagamentos sem viagem)."""
+    return copiar_para_silver(
+        leitura, escrita,
+        "raw_pagamento",
+        ["id_viagem", "num_proposta", "nome_orgao_pagador",
+         "nome_ug_pagadora", "tipo_pagamento", "valor"],
+        "silver_pagamento",
+        ["id_viagem", "num_proposta", "nome_orgao_pagador",
+         "nome_ug_pagadora", "tipo_pagamento", "valor"],
+        montar_linha_pagamento,
+        ids_viagem=ids_viagem,
+    )
+
+
+def transformar_passagem(leitura, escrita, ids_viagem):
+    """Raw -> Silver de passagem (descarta passagens sem viagem)."""
+    colunas = ["id_viagem", "meio_transporte", "pais_origem_ida",
+               "uf_origem_ida", "cidade_origem_ida", "pais_destino_ida",
+               "uf_destino_ida", "cidade_destino_ida", "valor_passagem",
+               "taxa_servico", "data_emissao"]
+    return copiar_para_silver(
+        leitura, escrita,
+        "raw_passagem", colunas,
+        "silver_passagem", colunas,
+        montar_linha_passagem,
+        ids_viagem=ids_viagem,
+    )
+
+
+def transformar_trecho(leitura, escrita, ids_viagem):
+    """Raw -> Silver de trecho (sem orfaos e sem sequencia repetida)."""
+    colunas = ["id_viagem", "sequencia_trecho", "origem_data", "origem_uf",
+               "origem_cidade", "destino_data", "destino_uf",
+               "destino_cidade", "meio_transporte", "numero_diarias"]
+    return copiar_para_silver(
+        leitura, escrita,
+        "raw_trecho", colunas,
+        "silver_trecho", colunas,
+        montar_linha_trecho,
+        ids_viagem=ids_viagem,
+        indices_chave=(0, 1),
+    )
