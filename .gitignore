@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dados do projeto (zip e CSVs do Portal da Transparência)
+data/
+*.zip
+*.csv
