@@ -114,3 +114,11 @@ def converter_data(texto):
         return datetime.strptime(partes[0], FORMATO_DATA).date()
     except ValueError:
         return None
+
+
+def converter_inteiro(texto):
+    """Converte texto em int. Retorna None se estiver vazio ou invalido."""
+    try:
+        return int(str(texto).strip())
+    except ValueError:
+        return None
