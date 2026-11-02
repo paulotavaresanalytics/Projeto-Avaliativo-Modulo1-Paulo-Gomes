@@ -15,6 +15,7 @@ Uso (na raiz do projeto, com o .venv ativo):
     python 1_extrair.py
 """
 
+import logging
 import shutil
 import sys
 import zipfile
@@ -31,10 +32,13 @@ from config import (
     CSV_SEPARADOR,
     DRIVE_FILE_ID,
     PASTA_DADOS,
+    PASTA_RAIZ,
     TAMANHO_BLOCO,
 )
 
 CAMINHO_ZIP = PASTA_DADOS / "dados.zip"
+PASTA_LOGS = PASTA_RAIZ / "logs"
+ARQUIVO_LOG = PASTA_LOGS / "erros_extracao.log"
 
 # Cada bloco lido do CSV e gravado em lotes menores, para nao estourar
 # o max_allowed_packet do MySQL em colunas de texto longo.
@@ -47,6 +51,19 @@ ERROS_ESPERADOS = (
     OSError,
     zipfile.BadZipFile,
 )
+
+
+def configurar_log():
+    """Cria a pasta logs/ e configura o registro de erros em arquivo."""
+    PASTA_LOGS.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        filename=ARQUIVO_LOG,
+        level=logging.ERROR,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        encoding="utf-8",
+        force=True,
+    )
+
 
 def baixar_zip():
     """Baixa o .zip do Google Drive para a pasta data/."""
@@ -64,6 +81,7 @@ def baixar_zip():
             "Falha no download do .zip. Verifique o DRIVE_FILE_ID e se "
             "o arquivo esta compartilhado para quem tem o link."
         )
+
 
 def descompactar_zip():
     """Extrai os 4 CSVs esperados para a pasta data/ (sem subpastas)."""
@@ -85,6 +103,7 @@ def descompactar_zip():
             f"CSVs nao encontrados no .zip: {', '.join(faltando)}"
         )
 
+
 def colunas_da_tabela(conexao, tabela):
     """Retorna a lista de colunas da tabela, na ordem em que foram criadas."""
     cursor = conexao.cursor()
@@ -93,6 +112,7 @@ def colunas_da_tabela(conexao, tabela):
     cursor.close()
     return colunas
 
+
 def contar_linhas(conexao, tabela):
     """Retorna quantas linhas existem na tabela."""
     cursor = conexao.cursor()
@@ -100,6 +120,7 @@ def contar_linhas(conexao, tabela):
     total = cursor.fetchone()[0]
     cursor.close()
     return total
+
 
 def carregar_csv_na_raw(conexao, caminho_csv, tabela):
     """
@@ -140,3 +161,28 @@ def carregar_csv_na_raw(conexao, caminho_csv, tabela):
         total_lidas += len(linhas)
         print(f"  {tabela}: {total_lidas} linhas carregadas ...")
     return total_lidas
+
+
+def carregar_todas_as_tabelas(conexao):
+    """Carrega os 4 CSVs e retorna a lista de erros (vazia se deu certo)."""
+    erros = []
+    for nome, info in ARQUIVOS.items():
+        tabela = info["tabela_raw"]
+        caminho_csv = PASTA_DADOS / info["csv"]
+        print(f"\n[{nome}] {caminho_csv.name} -> {tabela}")
+        try:
+            lidas = carregar_csv_na_raw(conexao, caminho_csv, tabela)
+            gravadas = contar_linhas(conexao, tabela)
+        except ERROS_ESPERADOS as erro:
+            erros.append(f"{tabela}: {erro}")
+            logging.error("%s | %s | %s", tabela, caminho_csv.name, erro)
+            print(f"  ERRO: {erro}")
+            continue
+        situacao = "OK" if lidas == gravadas else "DIVERGENTE"
+        print(f"  CSV: {lidas} | tabela: {gravadas} -> {situacao}")
+        if lidas != gravadas:
+            erros.append(f"{tabela}: contagem diferente do CSV")
+            logging.error(
+                "%s | contagem diferente (CSV=%s, tabela=%s)",
+                tabela, lidas, gravadas,)
+    return erros
