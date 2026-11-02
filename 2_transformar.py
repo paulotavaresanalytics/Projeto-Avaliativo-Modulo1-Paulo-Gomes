@@ -286,3 +286,61 @@ def gravar_lote(escrita, sql_insert, linhas, resumo):
             escrita.rollback()
             resumo["invalidas"] += 1
             logging.error("Linha rejeitada | %s | %s", linha[:3], erro)
+
+
+def copiar_para_silver(leitura, escrita, tabela_raw, colunas_raw,
+                       tabela_silver, colunas_silver, montar_linha,
+                       ids_viagem=None, indices_chave=None):
+    """
+    Le a tabela Raw em blocos, converte cada linha e grava na Silver.
+
+    - ids_viagem: conjunto de viagens validas; linhas de tabelas filhas
+      cuja viagem nao existe (orfas) sao descartadas.
+    - indices_chave: posicoes da linha que formam a chave unica; repeticoes
+      dessa chave sao descartadas (duplicidades).
+    Retorna um dicionario com a contagem de linhas.
+    """
+    marcadores = ", ".join(["%s"] * len(colunas_silver))
+    sql_insert = (
+        f"INSERT INTO {tabela_silver} ({', '.join(colunas_silver)}) "
+        f"VALUES ({marcadores})"
+    )
+    resumo = {"lidas": 0, "gravadas": 0, "duplicadas": 0, "orfas": 0,
+              "invalidas": 0}
+    vistos = set()
+
+    for bloco in ler_blocos(leitura, tabela_raw, colunas_raw):
+        linhas = []
+        for linha_raw in bloco:
+            resumo["lidas"] += 1
+            linha = montar_linha(linha_raw)
+            if linha is None:
+                resumo["invalidas"] += 1
+                continue
+            if ids_viagem is not None and linha[0] not in ids_viagem:
+                resumo["orfas"] += 1
+                continue
+            if indices_chave:
+                chave = tuple(linha[i] for i in indices_chave)
+                if None not in chave:
+                    if chave in vistos:
+                        resumo["duplicadas"] += 1
+                        continue
+                    vistos.add(chave)
+            linhas.append(linha)
+
+        for inicio in range(0, len(linhas), LOTE_INSERCAO):
+            gravar_lote(
+                escrita, sql_insert, linhas[inicio:inicio + LOTE_INSERCAO],
+                resumo,
+            )
+    return resumo
+
+
+def carregar_ids_viagem(conexao):
+    """Retorna o conjunto de id_viagem ja gravados em silver_viagem."""
+    cursor = conexao.cursor()
+    cursor.execute("SELECT id_viagem FROM silver_viagem")
+    ids = {linha[0] for linha in cursor.fetchall()}
+    cursor.close()
+    return ids
