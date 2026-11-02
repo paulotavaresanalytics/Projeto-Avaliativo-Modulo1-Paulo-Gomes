@@ -410,3 +410,58 @@ def transformar_trecho(leitura, escrita, ids_viagem):
         ids_viagem=ids_viagem,
         indices_chave=(0, 1),
     )
+
+
+def mostrar_resumo(nome, resumo):
+    """Imprime a contagem de linhas de uma tabela."""
+    print(
+        f"  {nome:<10} lidas: {resumo['lidas']} | "
+        f"gravadas: {resumo['gravadas']} | "
+        f"duplicadas: {resumo['duplicadas']} | "
+        f"orfas: {resumo['orfas']} | "
+        f"invalidas: {resumo['invalidas']}"
+    )
+
+
+def executar_transformacoes(leitura, escrita):
+    """Carrega a Silver na ordem correta: pai primeiro, depois as filhas."""
+    print("Transformando Raw -> Silver ...")
+    resumo = transformar_viagem(leitura, escrita)
+    mostrar_resumo("viagem", resumo)
+
+    ids_viagem = carregar_ids_viagem(escrita)
+    etapas = (
+        ("pagamento", transformar_pagamento),
+        ("passagem", transformar_passagem),
+        ("trecho", transformar_trecho),
+    )
+    for nome, transformar in etapas:
+        resumo = transformar(leitura, escrita, ids_viagem)
+        mostrar_resumo(nome, resumo)
+
+
+def main():
+    """Executa a Fase 2. Retorna 0 se tudo deu certo e 1 se houve erro."""
+    leitura = None
+    escrita = None
+    try:
+        configurar_log()
+        leitura = conectar()
+        escrita = conectar()
+        limpar_silver(escrita)
+        executar_transformacoes(leitura, escrita)
+    except ERROS_ESPERADOS as erro:
+        logging.error("Erro na transformacao: %s", erro)
+        print(f"\nErro na transformacao: {erro}")
+        return 1
+    finally:
+        for conexao in (leitura, escrita):
+            if conexao is not None and conexao.is_connected():
+                conexao.close()
+
+    print("\nCamada Silver carregada com sucesso.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
