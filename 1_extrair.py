@@ -100,3 +100,43 @@ def contar_linhas(conexao, tabela):
     total = cursor.fetchone()[0]
     cursor.close()
     return total
+
+def carregar_csv_na_raw(conexao, caminho_csv, tabela):
+    """
+    Esvazia a tabela Raw e carrega o CSV em blocos, sem alterar o conteudo.
+    Tudo e lido como texto: virgula decimal e datas DD/MM/AAAA ficam como
+    estao no arquivo. A carga e feita por posicao de coluna.
+    Retorna o total de linhas lidas do CSV.
+    """
+    colunas = colunas_da_tabela(conexao, tabela)
+    lista_colunas = ", ".join(f"`{coluna}`" for coluna in colunas)
+    marcadores = ", ".join(["%s"] * len(colunas))
+    sql_insert = (
+        f"INSERT INTO {tabela} ({lista_colunas}) VALUES ({marcadores})"
+    )
+
+    executar(conexao, f"TRUNCATE TABLE {tabela}")
+
+    total_lidas = 0
+    blocos = pd.read_csv(
+        caminho_csv,
+        sep=CSV_SEPARADOR,
+        encoding=CSV_ENCODING,
+        dtype=str,
+        keep_default_na=False,
+        chunksize=TAMANHO_BLOCO,
+    )
+    for bloco in blocos:
+        if bloco.shape[1] != len(colunas):
+            raise ValueError(
+                f"{caminho_csv.name} tem {bloco.shape[1]} colunas, mas "
+                f"{tabela} tem {len(colunas)}."
+            )
+        linhas = list(bloco.itertuples(index=False, name=None))
+        for inicio in range(0, len(linhas), LOTE_INSERCAO):
+            inserir_em_lote(
+                conexao, sql_insert, linhas[inicio:inicio + LOTE_INSERCAO]
+            )
+        total_lidas += len(linhas)
+        print(f"  {tabela}: {total_lidas} linhas carregadas ...")
+    return total_lidas
