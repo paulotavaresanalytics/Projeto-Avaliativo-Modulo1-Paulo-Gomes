@@ -76,3 +76,28 @@ def limpar_texto(valor, tamanho=None, padrao=None):
     if tamanho:
         texto = texto[:tamanho]
     return texto
+
+
+def converter_decimal(texto, maximo=MAXIMO_DECIMAL):
+    """
+    Converte texto com virgula decimal em Decimal (ex.: '1272,97' ->
+    Decimal('1272.97')). Retorna None se estiver vazio, for invalido,
+    negativo ou maior que o limite da coluna.
+    """
+    if texto is None:
+        return None
+    texto = str(texto).strip()
+    if not texto:
+        return None
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    try:
+        valor = Decimal(texto)
+        if not valor.is_finite():
+            return None
+        valor = valor.quantize(Decimal("0.01"))
+    except InvalidOperation:
+        return None
+    if valor < 0 or valor > maximo:
+        return None
+    return valor
