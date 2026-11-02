@@ -61,3 +61,18 @@ def configurar_log():
         encoding="utf-8",
         force=True,
     )
+
+
+def limpar_texto(valor, tamanho=None, padrao=None):
+    """
+    Remove espacos das pontas. Texto vazio vira 'padrao' (ou None).
+    Se 'tamanho' for informado, corta o texto nesse limite.
+    """
+    if valor is None:
+        return padrao
+    texto = str(valor).strip()
+    if not texto:
+        return padrao
+    if tamanho:
+        texto = texto[:tamanho]
+    return texto
