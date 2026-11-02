@@ -122,3 +122,14 @@ def converter_inteiro(texto):
         return int(str(texto).strip())
     except ValueError:
         return None
+
+
+def calcular_valor_total(diarias, passagens, outros_gastos, devolucao):
+    """valor_total = diarias + passagens + outros gastos - devolucao."""
+    zero = Decimal("0.00")
+    return (
+        (diarias or zero)
+        + (passagens or zero)
+        + (outros_gastos or zero)
+        - (devolucao or zero)
+    )
