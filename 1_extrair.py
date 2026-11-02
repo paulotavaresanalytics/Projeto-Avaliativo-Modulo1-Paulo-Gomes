@@ -66,3 +66,25 @@ def baixar_zip():
             "Falha no download do .zip. Verifique o DRIVE_FILE_ID e se "
             "o arquivo esta compartilhado para quem tem o link."
         )
+
+
+
+def descompactar_zip():
+    """Extrai os 4 CSVs esperados para a pasta data/ (sem subpastas)."""
+    esperados = {info["csv"] for info in ARQUIVOS.values()}
+    print("Descompactando os CSVs ...")
+    with zipfile.ZipFile(CAMINHO_ZIP) as arquivo_zip:
+        for nome in arquivo_zip.namelist():
+            nome_base = Path(nome).name
+            if nome_base not in esperados:
+                continue
+            destino = PASTA_DADOS / nome_base
+            with arquivo_zip.open(nome) as origem:
+                with open(destino, "wb") as saida:
+                    shutil.copyfileobj(origem, saida)
+
+    faltando = [c for c in sorted(esperados) if not (PASTA_DADOS / c).exists()]
+    if faltando:
+        raise FileNotFoundError(
+            f"CSVs nao encontrados no .zip: {', '.join(faltando)}"
+        )
