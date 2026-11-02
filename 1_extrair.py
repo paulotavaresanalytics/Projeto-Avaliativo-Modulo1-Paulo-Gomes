@@ -88,3 +88,13 @@ def descompactar_zip():
         raise FileNotFoundError(
             f"CSVs nao encontrados no .zip: {', '.join(faltando)}"
         )
+
+
+
+def colunas_da_tabela(conexao, tabela):
+    """Retorna a lista de colunas da tabela, na ordem em que foram criadas."""
+    cursor = conexao.cursor()
+    cursor.execute(f"SHOW COLUMNS FROM {tabela}")
+    colunas = [linha[0] for linha in cursor.fetchall()]
+    cursor.close()
+    return colunas
