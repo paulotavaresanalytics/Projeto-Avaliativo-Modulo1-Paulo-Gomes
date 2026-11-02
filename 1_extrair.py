@@ -48,8 +48,6 @@ ERROS_ESPERADOS = (
     zipfile.BadZipFile,
 )
 
-
-
 def baixar_zip():
     """Baixa o .zip do Google Drive para a pasta data/."""
     if "/" in DRIVE_FILE_ID:
@@ -66,8 +64,6 @@ def baixar_zip():
             "Falha no download do .zip. Verifique o DRIVE_FILE_ID e se "
             "o arquivo esta compartilhado para quem tem o link."
         )
-
-
 
 def descompactar_zip():
     """Extrai os 4 CSVs esperados para a pasta data/ (sem subpastas)."""
@@ -89,8 +85,6 @@ def descompactar_zip():
             f"CSVs nao encontrados no .zip: {', '.join(faltando)}"
         )
 
-
-
 def colunas_da_tabela(conexao, tabela):
     """Retorna a lista de colunas da tabela, na ordem em que foram criadas."""
     cursor = conexao.cursor()
@@ -98,3 +92,11 @@ def colunas_da_tabela(conexao, tabela):
     colunas = [linha[0] for linha in cursor.fetchall()]
     cursor.close()
     return colunas
+
+def contar_linhas(conexao, tabela):
+    """Retorna quantas linhas existem na tabela."""
+    cursor = conexao.cursor()
+    cursor.execute(f"SELECT COUNT(*) FROM {tabela}")
+    total = cursor.fetchone()[0]
+    cursor.close()
+    return total
