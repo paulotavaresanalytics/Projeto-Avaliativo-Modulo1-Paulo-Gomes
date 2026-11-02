@@ -201,3 +201,44 @@ def montar_linha_viagem(linha):
         ),
         calcular_duracao_dias(data_inicio, data_fim),
     )
+
+
+def montar_linha_pagamento(linha):
+    """Converte uma linha de raw_pagamento para silver_pagamento."""
+    (id_viagem, num_proposta, orgao_pagador, ug_pagadora, tipo,
+     valor) = linha
+
+    id_viagem = limpar_texto(id_viagem, 20)
+    if id_viagem is None:
+        return None
+    return (
+        id_viagem,
+        limpar_texto(num_proposta, 20),
+        limpar_texto(orgao_pagador, 255),
+        limpar_texto(ug_pagadora, 255),
+        limpar_texto(tipo, 50, TEXTO_PADRAO),
+        converter_decimal(valor),
+    )
+
+
+def montar_linha_passagem(linha):
+    """Converte uma linha de raw_passagem para silver_passagem."""
+    (id_viagem, meio, pais_origem, uf_origem, cidade_origem, pais_destino,
+     uf_destino, cidade_destino, valor, taxa, emissao) = linha
+
+    id_viagem = limpar_texto(id_viagem, 20)
+    if id_viagem is None:
+        return None
+    return (
+        id_viagem,
+        limpar_texto(meio, 50),
+        limpar_texto(pais_origem, 60),
+        limpar_texto(uf_origem, 40),
+        limpar_texto(cidade_origem, 80),
+        limpar_texto(pais_destino, 60),
+        limpar_texto(uf_destino, 40),
+        limpar_texto(cidade_destino, 80),
+        converter_decimal(valor),
+        converter_decimal(taxa),
+        converter_data(emissao),
+    )
