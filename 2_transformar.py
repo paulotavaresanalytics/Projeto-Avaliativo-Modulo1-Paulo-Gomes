@@ -150,3 +150,54 @@ def limpar_silver(conexao):
             executar(conexao, f"TRUNCATE TABLE {tabela}")
     finally:
         executar(conexao, "SET FOREIGN_KEY_CHECKS = 1")
+
+
+def ler_blocos(conexao, tabela, colunas):
+    """Le a tabela em blocos de TAMANHO_BLOCO linhas (gerador)."""
+    cursor = conexao.cursor()
+    cursor.execute(f"SELECT {', '.join(colunas)} FROM {tabela}")
+    while True:
+        bloco = cursor.fetchmany(TAMANHO_BLOCO)
+        if not bloco:
+            break
+        yield bloco
+    cursor.close()
+
+
+def montar_linha_viagem(linha):
+    """Converte uma linha de raw_viagem para silver_viagem."""
+    (id_viagem, num_proposta, situacao, urgente, cod_orgao, nome_orgao,
+     viajante, cargo, inicio, fim, destinos, motivo, diarias, passagens,
+     devolucao, outros_gastos) = linha
+
+    id_viagem = limpar_texto(id_viagem, 20)
+    if id_viagem is None:
+        return None
+    data_inicio = converter_data(inicio)
+    data_fim = converter_data(fim)
+    valor_diarias = converter_decimal(diarias)
+    valor_passagens = converter_decimal(passagens)
+    valor_devolucao = converter_decimal(devolucao)
+    valor_outros = converter_decimal(outros_gastos)
+    return (
+        id_viagem,
+        limpar_texto(num_proposta, 20),
+        limpar_texto(situacao, 50),
+        limpar_texto(urgente, 5),
+        limpar_texto(cod_orgao, 20),
+        limpar_texto(nome_orgao, 255, TEXTO_PADRAO),
+        limpar_texto(viajante, 255),
+        limpar_texto(cargo, 255),
+        data_inicio,
+        data_fim,
+        limpar_texto(destinos, 4000),
+        limpar_texto(motivo, 4000),
+        valor_diarias,
+        valor_passagens,
+        valor_devolucao,
+        valor_outros,
+        calcular_valor_total(
+            valor_diarias, valor_passagens, valor_outros, valor_devolucao
+        ),
+        calcular_duracao_dias(data_inicio, data_fim),
+    )
