@@ -186,3 +186,34 @@ def carregar_todas_as_tabelas(conexao):
                 "%s | contagem diferente (CSV=%s, tabela=%s)",
                 tabela, lidas, gravadas,)
     return erros
+
+
+def main():
+    """Executa a Fase 1. Retorna 0 se tudo deu certo e 1 se houve erro."""
+    conexao = None
+    try:
+        configurar_log()
+        baixar_zip()
+        descompactar_zip()
+        conexao = conectar()
+        erros = carregar_todas_as_tabelas(conexao)
+    except ERROS_ESPERADOS as erro:
+        logging.error("Erro na extracao: %s", erro)
+        print(f"\nErro na extracao: {erro}")
+        return 1
+    finally:
+        if conexao is not None and conexao.is_connected():
+            conexao.close()
+
+    if erros:
+        print("\nFinalizado com erros:")
+        for erro in erros:
+            print(f" - {erro}")
+        return 1
+    print("\nCamada Raw carregada com sucesso.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+    
